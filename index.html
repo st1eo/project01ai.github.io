@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Digital Health Monitor</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="card intake-card">
+        <div class="card-heading">
+          <p class="card-kicker">Персональный ввод</p>
+          <h3>Введите свои данные перед AI-анализом</h3>
+          <p class="section-text">
+            Укажите возраст, сколько часов вы спали и какая у вас была дневная
+            активность. AI сравнит данные с ориентировочной нормой и покажет
+            слабые места и рекомендации.
+          </p>
+        </div>
+
+        <div class="intake-grid">
+          <label class="field-group" for="ageInput">
+            <span>Возраст</span>
+            <input id="ageInput" type="number" min="14" max="80" value="21" />
+          </label>
+
+          <label class="field-group" for="sleepInput">
+            <span>Сон за ночь, часов</span>
+            <input id="sleepInput" type="number" min="3" max="12" step="0.5" value="5" />
+          </label>
+
+          <label class="field-group" for="activityInput">
+            <span>Дневная активность, шагов</span>
+            <input id="activityInput" type="number" min="0" max="30000" step="100" value="4800" />
+          </label>
+        </div>
+
+        <div class="hero-actions intake-actions">
+          <button id="analyzeButton" class="primary-button">Запустить AI-анализ</button>
+          <button id="resetButton" class="secondary-button">Сбросить сценарий</button>
+        </div>
+      </section>
+
+      <section class="dashboard-grid">
+        <article class="status-panel">
+          <p class="panel-label">Статус AI-модуля</p>
+          <div id="statusBadge" class="status-badge neutral">Ожидание анализа</div>
+          <h2 id="resultTitle">Готов к проверке недельных данных</h2>
+          <p id="resultText">
+            Нажмите кнопку, чтобы сравнить показатели с обычным профилем
+            пользователя и получить превентивное уведомление.
+          </p>
+          <div class="personal-summary">
+            <div class="summary-item">
+              <span>Возрастной профиль</span>
+              <strong id="ageProfileText">Студенческий возраст</strong>
+            </div>
+            <div class="summary-item">
+              <span>Норма сна</span>
+              <strong id="sleepNormText">7-9 ч</strong>
+            </div>
+            <div class="summary-item">
+              <span>Норма активности</span>
+              <strong id="activityNormText">8000 шагов</strong>
+            </div>
+            <div class="summary-item">
+              <span>Личный итог</span>
+              <strong id="personalConclusion">Ожидает ваши данные</strong>
+            </div>
+          </div>
+        </article>
+
+        <article class="card controls-card">
+          <div class="card-heading">
+            <p class="card-kicker">Текущие данные</p>
+            <h3>Текущие показатели пользователя</h3>
+            <p class="section-text">
+              Этот блок заполняется автоматически из верхней формы и вручную здесь
+              не меняется.
+            </p>
+          </div>
+
+          <div class="readonly-metrics">
+            <div class="readonly-metric">
+              <div class="readonly-head">
+                <span>Возраст</span>
+                <strong id="currentAgeDisplay">21 лет</strong>
+              </div>
+            </div>
+
+            <div class="readonly-metric">
+              <div class="readonly-head">
+                <span>Сон за последнюю ночь</span>
+                <strong id="currentSleepDisplay">5.0 ч</strong>
+              </div>
+              <div class="bar"><div id="currentSleepBar" class="bar-fill sleep-fill"></div></div>
+            </div>
+
+            <div class="readonly-metric">
+              <div class="readonly-head">
+                <span>Дневная активность</span>
+                <strong id="currentActivityDisplay">4 800 шагов</strong>
+              </div>
+              <div class="bar"><div id="currentActivityBar" class="bar-fill activity-fill"></div></div>
+            </div>
+
+            <div class="readonly-metric">
+              <div class="readonly-head">
+                <span>Оценка усталости</span>
+                <strong id="currentFatigueDisplay">8/10</strong>
+              </div>
+              <div class="bar"><div id="currentFatigueBar" class="bar-fill fatigue-fill"></div></div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="card trend-card">
+        <div class="card-heading">
+          <p class="card-kicker">Недельная динамика</p>
+          <h3>Если сохранить такой режим, неделя может выглядеть так</h3>
+          <p id="trendDescription" class="section-text">
+            Прогноз строится по введённым пользователем значениям и показывает,
+            как может меняться восстановление в течение недели.
+          </p>
+        </div>
+        <div id="trendGrid" class="trend-grid"></div>
+      </section>
+
+      <section class="insight-grid">
+        <article class="card findings-card">
+          <div class="card-heading">
+            <p class="card-kicker">Что настораживает</p>
+            <h3>Минусы по текущим показателям</h3>
+          </div>
+          <ul id="findingsList" class="analysis-list">
+            <li>После запуска AI здесь появится список слабых мест по вашему режиму.</li>
+          </ul>
+        </article>
+
+        <article class="card recommendations-card">
+          <div class="card-heading">
+            <p class="card-kicker">Рекомендации AI</p>
+            <h3>Что можно улучшить уже сейчас</h3>
+          </div>
+          <ul id="recommendationsList" class="analysis-list">
+            <li>После запуска AI здесь появятся персональные рекомендации.</li>
+          </ul>
+        </article>
+      </section>
+
+      <section class="notification-wrap">
+        <article class="card notification-card">
+          <div class="card-heading">
+            <p class="card-kicker">Превентивное уведомление</p>
+            <h3>Сообщение пользователю</h3>
+          </div>
+          <blockquote id="notificationText">
+            «Сон и активность ухудшаются уже несколько дней. Возможны признаки
+            переутомления. Постарайтесь сократить вечернюю нагрузку и увеличить
+            время сна».
+          </blockquote>
+        </article>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
