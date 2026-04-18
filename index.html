@@ -69,6 +69,18 @@
               <strong id="personalConclusion">Ожидает ваши данные</strong>
             </div>
           </div>
+
+          <div id="exportPanel" class="export-panel export-hidden">
+            <p class="export-kicker">Экспорт результата</p>
+            <h3>Скачать отчёт для Google Sheets</h3>
+            <p class="section-text">
+              После анализа можно скачать файл `.xls` с тремя листами:
+              дневной мониторинг, AI-анализ и рекомендации.
+            </p>
+            <button id="downloadReportButton" class="primary-button" type="button">
+              Скачать отчёт
+            </button>
+          </div>
         </article>
 
         <article class="card controls-card">
@@ -161,6 +173,31 @@
             переутомления. Постарайтесь сократить вечернюю нагрузку и увеличить
             время сна».
           </blockquote>
+        </article>
+      </section>
+
+      <section class="history-wrap">
+        <article class="card history-card">
+          <div class="history-head">
+            <div class="card-heading">
+              <p class="card-kicker">История анализов</p>
+              <h3>Последние сохранённые результаты</h3>
+              <p class="section-text">
+                После каждого запуска анализ сохраняется в браузере. Так можно
+                показать динамику и прошлые проверки пользователя.
+              </p>
+            </div>
+            <button id="clearHistoryButton" class="secondary-button" type="button">
+              Очистить историю
+            </button>
+          </div>
+
+          <div id="historyList" class="history-list">
+            <p class="history-empty">
+              История пока пуста. Запустите анализ, и здесь появятся последние
+              результаты.
+            </p>
+          </div>
         </article>
       </section>
     </main>

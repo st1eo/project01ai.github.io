@@ -1,4 +1,6 @@
 const dayLabels = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+const analysisHistoryKey = "digital-health-history";
+const historyLimit = 6;
 
 const defaultNotification =
   "«Сон и активность ухудшаются уже несколько дней. Возможны признаки переутомления. Постарайтесь сократить вечернюю нагрузку и увеличить время сна»";
@@ -15,6 +17,7 @@ const activityInput = document.getElementById("activityInput");
 
 const analyzeButton = document.getElementById("analyzeButton");
 const resetButton = document.getElementById("resetButton");
+const clearHistoryButton = document.getElementById("clearHistoryButton");
 
 const statusBadge = document.getElementById("statusBadge");
 const resultTitle = document.getElementById("resultTitle");
@@ -38,6 +41,11 @@ const currentFatigueDisplay = document.getElementById("currentFatigueDisplay");
 const currentSleepBar = document.getElementById("currentSleepBar");
 const currentActivityBar = document.getElementById("currentActivityBar");
 const currentFatigueBar = document.getElementById("currentFatigueBar");
+const historyList = document.getElementById("historyList");
+const exportPanel = document.getElementById("exportPanel");
+const downloadReportButton = document.getElementById("downloadReportButton");
+
+let latestReport = null;
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -64,6 +72,108 @@ function formatAge(age) {
   }
 
   return `${age} лет`;
+}
+
+function formatDateTime(timestamp) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function formatDecimal(value) {
+  return value.toFixed(1).replace(".", ",");
+}
+
+function formatWhole(value) {
+  return Math.round(value).toLocaleString("ru-RU");
+}
+
+function readHistory() {
+  try {
+    const raw = localStorage.getItem(analysisHistoryKey);
+    const parsed = raw ? JSON.parse(raw) : [];
+
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function saveHistory(history) {
+  try {
+    localStorage.setItem(analysisHistoryKey, JSON.stringify(history));
+  } catch (error) {
+    // Если localStorage недоступен, интерфейс продолжит работать без истории.
+  }
+}
+
+function renderHistory() {
+  const history = readHistory();
+
+  historyList.innerHTML = "";
+
+  if (!history.length) {
+    historyList.innerHTML = `
+      <p class="history-empty">
+        История пока пуста. Запустите анализ, и здесь появятся последние результаты.
+      </p>
+    `;
+    return;
+  }
+
+  history.forEach((entry) => {
+    const item = document.createElement("article");
+    item.className = "history-item";
+
+    item.innerHTML = `
+      <div class="history-item-top">
+        <strong>${entry.badgeText}</strong>
+        <span class="history-date">${formatDateTime(entry.createdAt)}</span>
+      </div>
+      <div class="history-metrics">
+        <div class="history-metric">
+          <span>Возраст</span>
+          <strong>${formatAge(entry.age)}</strong>
+        </div>
+        <div class="history-metric">
+          <span>Сон</span>
+          <strong>${entry.sleep.toFixed(1)} ч</strong>
+        </div>
+        <div class="history-metric">
+          <span>Активность</span>
+          <strong>${formatSteps(entry.activity)}</strong>
+        </div>
+        <div class="history-metric">
+          <span>Усталость</span>
+          <strong>${entry.fatigue}/10</strong>
+        </div>
+      </div>
+      <p class="history-conclusion">${entry.conclusion}</p>
+    `;
+
+    historyList.appendChild(item);
+  });
+}
+
+function storeAnalysis(entry) {
+  const history = readHistory();
+  const nextHistory = [entry, ...history].slice(0, historyLimit);
+
+  saveHistory(nextHistory);
+  renderHistory();
 }
 
 function getNormsByAge(age) {
@@ -216,12 +326,505 @@ function validateInput(age, sleep, activity) {
   return Number.isFinite(age) && Number.isFinite(sleep) && Number.isFinite(activity) && age >= 14 && sleep > 0 && activity >= 0;
 }
 
+function getStressLabel(fatigue) {
+  if (fatigue >= 8) {
+    return "Очень высокий";
+  }
+
+  if (fatigue >= 6) {
+    return "Высокий";
+  }
+
+  if (fatigue >= 4) {
+    return "Средний";
+  }
+
+  return "Низкий";
+}
+
+function getRecoveryLabel(fatigue) {
+  if (fatigue >= 8) {
+    return "Критическое";
+  }
+
+  if (fatigue >= 7) {
+    return "Снижается";
+  }
+
+  if (fatigue >= 5) {
+    return "Удовлетворит.";
+  }
+
+  return "Норма";
+}
+
+function getRiskInfo(dayData, norms) {
+  const sleepDeficit = Math.max(0, norms.minSleep - dayData.sleep);
+  const activityPercent = Math.round((Math.max(0, norms.activity - dayData.activity) / norms.activity) * 100);
+
+  if (dayData.fatigue >= 8 || sleepDeficit >= 2 || activityPercent >= 45) {
+    return { label: "Критич.", rowStyle: "dangerRow", textStyle: "dangerText" };
+  }
+
+  if (dayData.fatigue >= 7 || sleepDeficit >= 1.5 || activityPercent >= 35) {
+    return { label: "Высокий", rowStyle: "dangerRow", textStyle: "dangerText" };
+  }
+
+  if (dayData.fatigue >= 5 || sleepDeficit >= 1 || activityPercent >= 15) {
+    return { label: "Средний", rowStyle: "warnRow", textStyle: "warnText" };
+  }
+
+  return { label: "Низкий", rowStyle: "goodRow", textStyle: "goodText" };
+}
+
+function getDailyRecommendation(dayData, norms) {
+  const sleepDeficit = Math.max(0, norms.minSleep - dayData.sleep);
+  const activityDeficit = Math.max(0, norms.activity - dayData.activity);
+
+  if (sleepDeficit >= 2) {
+    return `Срочно поднять сон до ${norms.minSleep}-${norms.maxSleep} ч.`;
+  }
+
+  if (dayData.fatigue >= 7) {
+    return "Снизить вечернюю нагрузку и сделать разгрузочный вечер.";
+  }
+
+  if (activityDeficit >= 1800) {
+    return `Добавить прогулку и приблизиться к ${formatSteps(norms.activity)}.`;
+  }
+
+  if (sleepDeficit > 0 || activityDeficit > 0) {
+    return "Слегка скорректировать режим сна и движения.";
+  }
+
+  return "Режим выглядит стабильным.";
+}
+
+function xmlCell(value, styleId, options = {}) {
+  const type = options.type || "String";
+  const mergeAcross = Number.isInteger(options.mergeAcross) ? ` ss:MergeAcross="${options.mergeAcross}"` : "";
+
+  if (value === null || value === undefined || value === "") {
+    return `<Cell ss:StyleID="${styleId}"${mergeAcross}/>`;
+  }
+
+  return `<Cell ss:StyleID="${styleId}"${mergeAcross}><Data ss:Type="${type}">${escapeXml(value)}</Data></Cell>`;
+}
+
+function xmlRow(cells, options = {}) {
+  const height = Number.isFinite(options.height) ? ` ss:Height="${options.height}" ss:AutoFitHeight="0"` : "";
+
+  return `<Row${height}>${cells.join("")}</Row>`;
+}
+
+function buildRecommendationRows(reportData) {
+  const {
+    sleep,
+    activity,
+    fatigue,
+    norms,
+    badgeText,
+  } = reportData;
+
+  const sleepDeficit = Math.max(0, norms.minSleep - sleep);
+  const activityDeficit = Math.max(0, norms.activity - activity);
+  const activityPercent = Math.round((activityDeficit / norms.activity) * 100);
+  const rows = [];
+
+  if (sleepDeficit > 0) {
+    rows.push({
+      priority: sleepDeficit >= 2 ? "Срочно" : "Важно",
+      category: "Сон",
+      recommendation: `Лечь спать раньше и выйти на ${norms.minSleep}-${norms.maxSleep} часов сна.`,
+      effect: "Восстановление концентрации и снижение признаков недосыпа.",
+    });
+  }
+
+  if (fatigue >= 7) {
+    rows.push({
+      priority: "Срочно",
+      category: "Нагрузка",
+      recommendation: "Уменьшить вечернюю учебную нагрузку и убрать экран за 1 час до сна.",
+      effect: "Снижение утомления и более глубокое восстановление ночью.",
+    });
+  }
+
+  if (activityDeficit > 0) {
+    rows.push({
+      priority: activityPercent >= 35 ? "Важно" : "Полезно",
+      category: "Активность",
+      recommendation: `Добавить дневную прогулку и приблизиться к ${formatSteps(norms.activity)}.`,
+      effect: "Улучшение кровообращения, бодрости и устойчивости к нагрузке.",
+    });
+  }
+
+  rows.push({
+    priority: badgeText === "Высокий риск" ? "Важно" : "Полезно",
+    category: "Питание",
+    recommendation: "Не пропускать приёмы пищи и поддерживать воду в течение дня.",
+    effect: "Более стабильная энергия и меньшее чувство истощения вечером.",
+  });
+
+  rows.push({
+    priority: "Полезно",
+    category: "Планирование",
+    recommendation: "Разбивать подготовку на интервалы 25/5 или 50/10 минут с короткими паузами.",
+    effect: "Меньше перегрузки и лучшее удержание внимания во время учёбы.",
+  });
+
+  rows.push({
+    priority: "Полезно",
+    category: "Восстановление",
+    recommendation: "Добавить 5-10 минут спокойного дыхания или отдыха перед сном.",
+    effect: "Снижение внутреннего напряжения и более спокойное засыпание.",
+  });
+
+  return rows.slice(0, 6);
+}
+
+function getPriorityStyles(priority) {
+  if (priority === "Срочно") {
+    return {
+      rowStyle: "dangerRow",
+      textStyle: "dangerText",
+    };
+  }
+
+  if (priority === "Важно") {
+    return {
+      rowStyle: "warnRow",
+      textStyle: "warnText",
+    };
+  }
+
+  return {
+    rowStyle: "goodRow",
+    textStyle: "goodText",
+  };
+}
+
+function buildSpreadsheetReport(reportData) {
+  const {
+    createdAt,
+    age,
+    sleep,
+    activity,
+    fatigue,
+    norms,
+    weeklyForecast,
+    badgeText,
+    description,
+    notification,
+    conclusion,
+  } = reportData;
+
+  const avgSleep = weeklyForecast.reduce((sum, item) => sum + item.sleep, 0) / weeklyForecast.length;
+  const avgActivity = weeklyForecast.reduce((sum, item) => sum + item.activity, 0) / weeklyForecast.length;
+  const avgFatigue = weeklyForecast.reduce((sum, item) => sum + item.fatigue, 0) / weeklyForecast.length;
+  const firstDay = weeklyForecast[0];
+  const lastDay = weeklyForecast[weeklyForecast.length - 1];
+  const trendFact = lastDay.fatigue > firstDay.fatigue ? "Нарастающая усталость 7 дней" : "Стабильный";
+  const reportDate = formatDateTime(createdAt);
+  const recommendationRows = buildRecommendationRows(reportData);
+
+  const sheetOneRows = [
+    xmlRow([xmlCell("Мониторинг здоровья студента во время сессии", "titleBlue", { mergeAcross: 9 })], { height: 34 }),
+    xmlRow([xmlCell(`Период: прогноз на 7 дней | Отчёт сформирован: ${reportDate} | Студент: ${formatAge(age)}`, "subtitleBlue", { mergeAcross: 9 })], { height: 24 }),
+    xmlRow([xmlCell("", "Default", { mergeAcross: 9 })], { height: 10 }),
+    xmlRow([
+      xmlCell("День", "headerBlue"),
+      xmlCell("Дата", "headerBlue"),
+      xmlCell("Сон (часов)", "headerBlue"),
+      xmlCell("Норма сна", "headerBlue"),
+      xmlCell("Активность (шаги)", "headerBlue"),
+      xmlCell("Уровень стресса", "headerBlue"),
+      xmlCell("Усталость (1-10)", "headerBlue"),
+      xmlCell("Статус восстановления", "headerBlue"),
+      xmlCell("AI-оценка риска", "headerBlue"),
+      xmlCell("Рекомендация", "headerBlue"),
+    ], { height: 30 }),
+  ];
+
+  weeklyForecast.forEach((dayData, index) => {
+    const risk = getRiskInfo(dayData, norms);
+
+    sheetOneRows.push(
+      xmlRow([
+        xmlCell(`День ${index + 1}`, risk.rowStyle),
+        xmlCell(dayData.day, risk.rowStyle),
+        xmlCell(formatDecimal(dayData.sleep), risk.rowStyle),
+        xmlCell(`${norms.minSleep}-${norms.maxSleep} ч`, risk.rowStyle),
+        xmlCell(formatWhole(dayData.activity), risk.rowStyle),
+        xmlCell(getStressLabel(dayData.fatigue), risk.rowStyle),
+        xmlCell(String(dayData.fatigue), risk.rowStyle),
+        xmlCell(getRecoveryLabel(dayData.fatigue), risk.rowStyle),
+        xmlCell(risk.label, risk.textStyle),
+        xmlCell(getDailyRecommendation(dayData, norms), risk.rowStyle),
+      ], { height: 26 }),
+    );
+  });
+
+  sheetOneRows.push(
+    xmlRow([
+      xmlCell("СРЕДНЕЕ / ИТОГ", "summaryLabel", { mergeAcross: 1 }),
+      xmlCell(formatDecimal(avgSleep), "summaryValue"),
+      xmlCell(`${norms.minSleep}-${norms.maxSleep} ч`, "summaryValue"),
+      xmlCell(formatWhole(avgActivity), "summaryValue"),
+      xmlCell("—", "summaryValue"),
+      xmlCell(formatDecimal(avgFatigue), "summaryValue"),
+      xmlCell(getRecoveryLabel(lastDay.fatigue), "summaryValue"),
+      xmlCell(badgeText, "summaryValue"),
+      xmlCell(conclusion, "summaryValue"),
+    ], { height: 28 }),
+  );
+
+  sheetOneRows.push(
+    xmlRow([xmlCell("СИСТЕМНОЕ УВЕДОМЛЕНИЕ ОТ AI-МОДУЛЯ", "alertTitle", { mergeAcross: 9 })], { height: 30 }),
+    xmlRow([xmlCell(notification, "alertBody", { mergeAcross: 9 })], { height: 44 }),
+  );
+
+  const sheetTwoRows = [
+    xmlRow([xmlCell("AI-Анализ показателей и логика выводов", "titleBlue", { mergeAcross: 4 })], { height: 34 }),
+    xmlRow([xmlCell("", "Default", { mergeAcross: 4 })], { height: 10 }),
+    xmlRow([
+      xmlCell("Источник данных", "headerBlue"),
+      xmlCell("Показатель", "headerBlue"),
+      xmlCell("Норма", "headerBlue"),
+      xmlCell("Факт", "headerBlue"),
+      xmlCell("Вывод AI", "headerBlue"),
+    ], { height: 30 }),
+    xmlRow([
+      xmlCell("Фитнес-браслет", "dangerRow"),
+      xmlCell("Продолжительность сна", "dangerRow"),
+      xmlCell(`>= ${norms.minSleep} часов`, "goodRow"),
+      xmlCell(`${formatDecimal(lastDay.sleep)} часов`, "dangerRow"),
+      xmlCell(`Дефицит сна: ${formatDecimal(Math.max(0, norms.minSleep - lastDay.sleep))} ч. ${lastDay.sleep < norms.minSleep ? "Нужно восстановление." : "Сон в допустимом диапазоне."}`, "dangerRow"),
+    ], { height: 38 }),
+    xmlRow([
+      xmlCell("Мобильное приложение", "dangerRow"),
+      xmlCell("Дневная активность", "dangerRow"),
+      xmlCell(`>= ${formatWhole(norms.activity)} шагов`, "goodRow"),
+      xmlCell(`${formatWhole(lastDay.activity)} шагов`, "dangerRow"),
+      xmlCell(`Отклонение по шагам: ${formatWhole(Math.max(0, norms.activity - lastDay.activity))}. ${lastDay.activity < norms.activity ? "Подвижность снижена." : "Активность достаточная."}`, "dangerRow"),
+    ], { height: 38 }),
+    xmlRow([
+      xmlCell("Ручной ввод пользователя", "dangerRow"),
+      xmlCell("Уровень усталости", "dangerRow"),
+      xmlCell(norms.fatigue, "goodRow"),
+      xmlCell(`${fatigue} из 10`, "dangerRow"),
+      xmlCell(`Расчётная усталость: ${fatigue}/10. ${fatigue >= 7 ? "Самочувствие уже напряжённое." : "Есть пространство для профилактики."}`, "dangerRow"),
+    ], { height: 38 }),
+    xmlRow([
+      xmlCell("AI (сравнение с профилем)", "dangerRow"),
+      xmlCell("Тренд восстановления", "dangerRow"),
+      xmlCell("Стабильный", "goodRow"),
+      xmlCell(trendFact, "dangerRow"),
+      xmlCell(lastDay.fatigue > firstDay.fatigue ? "Прогноз показывает нарастание утомления к концу недели." : "Резкого ухудшения не ожидается.", "dangerRow"),
+    ], { height: 42 }),
+    xmlRow([
+      xmlCell("AI (агрегированный вывод)", "summaryAccent"),
+      xmlCell("Общий риск переутомления", "summaryAccent"),
+      xmlCell("Низкий / средний / высокий", "goodRow"),
+      xmlCell(badgeText, "summaryValue"),
+      xmlCell(description, "summaryAccent"),
+    ], { height: 42 }),
+  ];
+
+  const sheetThreeRows = [
+    xmlRow([xmlCell("Рекомендации AI-модуля для студента", "titleGreen", { mergeAcross: 3 })], { height: 34 }),
+    xmlRow([xmlCell("", "Default", { mergeAcross: 3 })], { height: 10 }),
+    xmlRow([
+      xmlCell("Приоритет", "headerGreen"),
+      xmlCell("Категория", "headerGreen"),
+      xmlCell("Рекомендация", "headerGreen"),
+      xmlCell("Ожидаемый эффект", "headerGreen"),
+    ], { height: 30 }),
+  ];
+
+  recommendationRows.forEach((item) => {
+    const styles = getPriorityStyles(item.priority);
+
+    sheetThreeRows.push(
+      xmlRow([
+        xmlCell(item.priority, styles.textStyle),
+        xmlCell(item.category, styles.rowStyle),
+        xmlCell(item.recommendation, styles.rowStyle),
+        xmlCell(item.effect, styles.rowStyle),
+      ], { height: 42 }),
+    );
+  });
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+  <Author>Digital Health Monitor</Author>
+  <Created>${escapeXml(new Date(createdAt).toISOString())}</Created>
+ </DocumentProperties>
+ <Styles>
+  <Style ss:ID="Default" ss:Name="Normal">
+   <Alignment ss:Vertical="Center" ss:WrapText="1"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#B9C3D0"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#B9C3D0"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#B9C3D0"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#B9C3D0"/>
+   </Borders>
+   <Font ss:FontName="Arial" ss:Size="12" ss:Color="#111111"/>
+   <Interior ss:Color="#FFFFFF" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="titleBlue">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Font ss:FontName="Arial" ss:Bold="1" ss:Size="18" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#3973B4" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="subtitleBlue">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Font ss:FontName="Arial" ss:Italic="1" ss:Size="12" ss:Color="#334155"/>
+   <Interior ss:Color="#DCE8F7" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="titleGreen">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Font ss:FontName="Arial" ss:Bold="1" ss:Size="18" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#1F7A3F" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="headerBlue">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
+   <Font ss:FontName="Arial" ss:Bold="1" ss:Size="12" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#223F73" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="headerGreen">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
+   <Font ss:FontName="Arial" ss:Bold="1" ss:Size="12" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#1F7A3F" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="goodRow">
+   <Alignment ss:Vertical="Center" ss:WrapText="1"/>
+   <Font ss:FontName="Arial" ss:Size="12" ss:Color="#111111"/>
+   <Interior ss:Color="#D9EFD9" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="warnRow">
+   <Alignment ss:Vertical="Center" ss:WrapText="1"/>
+   <Font ss:FontName="Arial" ss:Size="12" ss:Color="#111111"/>
+   <Interior ss:Color="#FFF0C4" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="dangerRow">
+   <Alignment ss:Vertical="Center" ss:WrapText="1"/>
+   <Font ss:FontName="Arial" ss:Size="12" ss:Color="#111111"/>
+   <Interior ss:Color="#F7D1D1" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="goodText">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Font ss:FontName="Arial" ss:Bold="1" ss:Size="12" ss:Color="#047857"/>
+   <Interior ss:Color="#D9EFD9" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="warnText">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Font ss:FontName="Arial" ss:Bold="1" ss:Size="12" ss:Color="#B45309"/>
+   <Interior ss:Color="#FFF0C4" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="dangerText">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Font ss:FontName="Arial" ss:Bold="1" ss:Size="12" ss:Color="#B91C1C"/>
+   <Interior ss:Color="#F7D1D1" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="summaryLabel">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Font ss:FontName="Arial" ss:Bold="1" ss:Size="12" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#223F73" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="summaryValue">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
+   <Font ss:FontName="Arial" ss:Bold="1" ss:Size="12" ss:Color="#111111"/>
+   <Interior ss:Color="#D9E6F2" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="summaryAccent">
+   <Alignment ss:Vertical="Center" ss:WrapText="1"/>
+   <Font ss:FontName="Arial" ss:Bold="1" ss:Size="12" ss:Color="#111111"/>
+   <Interior ss:Color="#FFD84D" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="alertTitle">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Font ss:FontName="Arial" ss:Bold="1" ss:Size="14" ss:Color="#8B0000"/>
+   <Interior ss:Color="#F7C9C9" ss:Pattern="Solid"/>
+  </Style>
+  <Style ss:ID="alertBody">
+   <Alignment ss:Horizontal="Left" ss:Vertical="Center" ss:WrapText="1"/>
+   <Font ss:FontName="Arial" ss:Italic="1" ss:Size="12" ss:Color="#111111"/>
+   <Interior ss:Color="#FFF4BF" ss:Pattern="Solid"/>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="Дневной мониторинг">
+  <Table>
+   <Column ss:Width="96"/>
+   <Column ss:Width="84"/>
+   <Column ss:Width="126"/>
+   <Column ss:Width="132"/>
+   <Column ss:Width="160"/>
+   <Column ss:Width="150"/>
+   <Column ss:Width="130"/>
+   <Column ss:Width="178"/>
+   <Column ss:Width="154"/>
+   <Column ss:Width="320"/>
+   ${sheetOneRows.join("")}
+  </Table>
+ </Worksheet>
+ <Worksheet ss:Name="AI-анализ">
+  <Table>
+   <Column ss:Width="220"/>
+   <Column ss:Width="235"/>
+   <Column ss:Width="155"/>
+   <Column ss:Width="190"/>
+   <Column ss:Width="430"/>
+   ${sheetTwoRows.join("")}
+  </Table>
+ </Worksheet>
+ <Worksheet ss:Name="Рекомендации">
+  <Table>
+   <Column ss:Width="150"/>
+   <Column ss:Width="185"/>
+   <Column ss:Width="520"/>
+   <Column ss:Width="380"/>
+   ${sheetThreeRows.join("")}
+  </Table>
+ </Worksheet>
+</Workbook>`;
+}
+
+function downloadSpreadsheetReport() {
+  if (!latestReport) {
+    return;
+  }
+
+  const xml = buildSpreadsheetReport(latestReport);
+  const blob = new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = `digital-health-report-${latestReport.createdAt}.xls`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function setExportVisibility(isVisible) {
+  exportPanel.classList.toggle("export-hidden", !isVisible);
+}
+
 function analyzeProfile() {
   const age = Number(ageInput.value);
   const sleep = Number(sleepInput.value);
   const activity = Number(activityInput.value);
 
   if (!validateInput(age, sleep, activity)) {
+    latestReport = null;
+    setExportVisibility(false);
     setListItems(findingsList, ["Введите корректные значения возраста, сна и дневной активности."]);
     setListItems(recommendationsList, ["После заполнения формы снова нажмите «Запустить AI-анализ»."]);
     return;
@@ -331,6 +934,34 @@ function analyzeProfile() {
 
   setListItems(findingsList, findings);
   setListItems(recommendationsList, recommendations);
+
+  latestReport = {
+    createdAt: Date.now(),
+    badgeText,
+    age,
+    sleep,
+    activity,
+    fatigue,
+    norms,
+    weeklyForecast,
+    findings,
+    recommendations,
+    description,
+    notification,
+    conclusion,
+  };
+
+  setExportVisibility(true);
+
+  storeAnalysis({
+    createdAt: latestReport.createdAt,
+    badgeText,
+    age,
+    sleep,
+    activity,
+    fatigue,
+    conclusion,
+  });
 }
 
 function resetScenario() {
@@ -355,12 +986,21 @@ function resetScenario() {
     "Введите данные сверху и нажмите кнопку в верхнем блоке, чтобы получить персональный AI-анализ по возрасту, сну и активности.";
   notificationText.textContent = defaultNotification;
   personalConclusion.textContent = "Ожидает ваши данные";
+  latestReport = null;
+  setExportVisibility(false);
 
   setListItems(findingsList, ["После запуска AI здесь появятся минусы именно по вашим введённым данным."]);
   setListItems(recommendationsList, ["После запуска AI здесь появятся персональные рекомендации по режиму."]);
+
+  renderHistory();
 }
 
 analyzeButton.addEventListener("click", analyzeProfile);
 resetButton.addEventListener("click", resetScenario);
+downloadReportButton.addEventListener("click", downloadSpreadsheetReport);
+clearHistoryButton.addEventListener("click", () => {
+  saveHistory([]);
+  renderHistory();
+});
 
 resetScenario();
