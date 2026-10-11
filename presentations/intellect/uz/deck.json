@@ -1,0 +1,16 @@
+{
+  "v": 4,
+  "createdOnFiles": { "v": 1, "at": "2026-10-11T17:55:00Z" },
+  "lists": "css",
+  "title": "Intellect — sotuv taqdimoti (UZ)",
+  "order": ["cover", "problem", "roles", "learning", "payments", "salary", "telegram", "analytics", "launch", "contact"],
+  "sections": {
+    "s1": { "description": "Tanishuv va tizim hal qiladigan muammo", "start": "cover" },
+    "s2": { "description": "Tizim qanday ishlaydi: rollar, o'quv jarayoni, to'lovlar, oyliklar", "start": "roles" },
+    "s3": { "description": "Telegram, analitika, ishga tushirish va aloqa", "start": "telegram" }
+  },
+  "faces": {
+    "manrope": { "family": "Manrope", "href": "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" }
+  },
+  "designSystems": []
+}

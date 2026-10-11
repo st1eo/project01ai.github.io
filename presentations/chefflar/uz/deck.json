@@ -1,0 +1,17 @@
+{
+  "v": 4,
+  "createdOnFiles": { "v": 1, "at": "2026-10-11T18:55:00Z" },
+  "lists": "css",
+  "title": "Chefflar — sotuv taqdimoti (UZ)",
+  "order": ["cover", "problem", "flow", "rnp-dash", "rnp-leads", "rnp-pay", "rnp-card", "onp-students", "onp-curators", "contact"],
+  "sections": {
+    "s1": { "description": "Tanishuv, muammo va tizim tuzilishi", "start": "cover" },
+    "s2": { "description": "Savdo bo'limi rahbarining paneli (RNP)", "start": "rnp-dash" },
+    "s3": { "description": "O'quv bo'limi paneli (ONP) va keyingi qadam", "start": "onp-students" }
+  },
+  "faces": {
+    "manrope": { "family": "Manrope", "href": "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" },
+    "jetbrains-mono": { "family": "JetBrains Mono", "href": "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" }
+  },
+  "designSystems": []
+}

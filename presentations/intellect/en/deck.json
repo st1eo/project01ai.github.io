@@ -1,0 +1,16 @@
+{
+  "v": 4,
+  "createdOnFiles": { "v": 1, "at": "2026-10-11T18:20:00Z" },
+  "lists": "css",
+  "title": "Intellect — sales deck (EN)",
+  "order": ["cover", "problem", "roles", "learning", "payments", "salary", "telegram", "analytics", "launch", "contact"],
+  "sections": {
+    "s1": { "description": "Introduction and the problem the system solves", "start": "cover" },
+    "s2": { "description": "How the system works: roles, learning process, payments and salaries", "start": "roles" },
+    "s3": { "description": "Telegram, analytics, launch and contact", "start": "telegram" }
+  },
+  "faces": {
+    "manrope": { "family": "Manrope", "href": "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" }
+  },
+  "designSystems": []
+}

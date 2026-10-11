@@ -1,0 +1,16 @@
+{
+  "v": 4,
+  "createdOnFiles": { "v": 1, "at": "2026-10-11T17:30:00Z" },
+  "lists": "css",
+  "title": "Intellect — презентация для продаж (RU)",
+  "order": ["cover", "problem", "roles", "learning", "payments", "salary", "telegram", "analytics", "launch", "contact"],
+  "sections": {
+    "s1": { "description": "Знакомство и проблема, которую решает система", "start": "cover" },
+    "s2": { "description": "Как работает система: роли, учёба, оплаты, зарплаты", "start": "roles" },
+    "s3": { "description": "Telegram, аналитика, запуск и контакты", "start": "telegram" }
+  },
+  "faces": {
+    "manrope": { "family": "Manrope", "href": "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" }
+  },
+  "designSystems": []
+}
